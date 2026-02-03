@@ -20,7 +20,7 @@
 
 *Part, name=concrete
 ** Import the concrete mesh from an external input file
-*Include, input="./refined/concrete.inp"
+*Include, input="./mesh/concrete.inp"
 
 ** Assign a solid (continuum) section to the concrete elements
 **  - elset=concrete : element set defined in the included mesh
@@ -32,7 +32,7 @@
 
 *Part, name=steel
 ** Import the steel mesh (plate + anchor)
-*Include, input="./refined/steel.inp"
+*Include, input="./mesh/steel.inp"
 
 ** Assign material to the steel plate elements
 *Solid Section, elset=PLATE, material=STEEL_PLATE
@@ -101,18 +101,18 @@ concrete-1.concrete_to_mortar, steel-1.mortar_to_concrete
 *Elastic
 200000., 0.3
 *DENSITY
-7.85e-8
+7.85e-9
 *Material, name=STEEL_PLATE
 *Elastic
 200000., 0.3
 *DENSITY
-7.85e-8
+7.85e-9
 *Material, name=CONCRETE
 ** Simplified linear elastic concrete model
 *Elastic
 2e2, 0.3
 *DENSITY
-2.4e-8
+2.4e-9
 ** ------------------------------------------------------------
 ** Cohesive (stick–slip) material for mortar
 ** ------------------------------------------------------------
@@ -124,7 +124,7 @@ concrete-1.concrete_to_mortar, steel-1.mortar_to_concrete
 *Elastic, type=TRACTION
 6e2, 3e2, 3e2
 *DENSITY
-3.0e-8
+3.0e-9
 **
 ** ============================================================
 ** CONTACT INTERACTIONS
