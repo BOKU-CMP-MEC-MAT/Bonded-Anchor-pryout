@@ -1,0 +1,561 @@
+###############################################################################
+# RESET AND GLOBAL PARAMETERS
+###############################################################################
+
+reset
+# Global geometric tolerance used in comparisons
+#{TOL = 1e-4}
+
+# Define pi explicitly (Cubit scripting does not always provide it)
+{#pi = 3.14159265358979323846}
+
+###############################################################################
+# STEEL ANCHOR GEOMETRY
+###############################################################################
+
+# Embedment depth of the anchor
+{#hef = 50}
+
+# Anchor diameter
+{#dAnchor = 14}
+
+# Optional head rotation angle (currently unused)
+{#alphaHead = 0}                 # degrees
+{#alphaHead = alphaHead / 180 * pi}  # convert to radians
+
+# Mesh control parameters (used later)
+{#numH       = 21}
+{#numInnerR  = 5}
+{#numOuterR  = 15}
+
+# Create a group to store all anchor-related volumes
+create group "anchor"
+#{anchor_gId = Id("group")}
+
+# Create a cylindrical anchor aligned with the Z-axis
+cylinder height {hef} radius {dAnchor/2}
+
+# Rotate anchor so its axis aligns with global Y (pull-out direction)
+rotate volume {Id("volume")} angle 90 about X include_merged 
+
+# Add the anchor volume to the anchor group
+group anchor add volume {Id("volume")}
+
+# Move anchor so its top surface is at y = 0
+volume in group anchor move y {-BBox_YMax("group", anchor_gId)} include_merged 
+
+# Additional protruding length above concrete (anchor overhang)
+{#uberstand = 15}
+
+# Sweep the top surface upward to create the protruding anchor part
+sweep surface with y_coord > {-BBox_YMax("group", anchor_gId) - TOL} \
+      perpendicular distance {uberstand} keep
+
+# Add the new swept volume to the anchor group
+group anchor add volume {Id("volume")}
+
+# Unite all anchor volumes into one solid
+unite body in volume in anchor with y_max < {+TOL}
+
+###############################################################################
+# MORTAR GEOMETRY (COHESIVE / INTERFACE LAYER)
+###############################################################################
+
+create group "mortar"
+#{mortar_gId = Id("group")}
+
+# Thickness of mortar layer around anchor
+{#mortar_thickness = 1}
+
+# Effective hole diameter in concrete
+{#dHole = dAnchor + 2*mortar_thickness}
+
+# Create a cylinder slightly larger than the anchor
+cylinder height {hef} radius {dAnchor/2 + mortar_thickness}
+
+# Align mortar with anchor
+rotate volume {Id("volume")} angle 90 about X include_merged 
+group mortar add volume {Id("volume")}
+
+# Move mortar top surface to y = 0
+volume in group mortar move y {-BBox_YMax("group", mortar_gId)} include_merged
+
+
+###############################################################################
+# CONCRETE BLOCK GEOMETRY
+###############################################################################
+
+# Concrete block height and lateral dimensions
+{#H     = 2*80}       # vertical size
+{#H_hor = 10*hef}     # horizontal size
+
+# Create a large brick to represent concrete
+brick x {H_hor} y {H_hor} z {H}
+
+# Align concrete so Y is vertical
+rotate volume {Id("volume")} angle 90 about X include_merged 
+
+create group "concrete"
+#{concrete_gId = Id("group")}
+group concrete add volume {Id("volume")}
+
+# Move concrete top surface to y = 0
+volume in group concrete move y {-BBox_YMax("group", concrete_gId)} include_merged 
+
+###############################################################################
+# STEEL PLATE GEOMETRY
+###############################################################################
+
+# Plate thickness proportional to anchor diameter
+{#Hplate = 4*dAnchor}
+
+create group "plate"
+#{plate_gId = Id("group")}
+
+# Create square plate
+brick x {Hplate} y {Hplate} z {uberstand}
+rotate volume {Id("volume")} angle 90 about X include_merged 
+
+group plate add volume {Id("volume")}
+
+# Align bottom of plate with y = 0
+volume in group plate move y {-BBox_YMin("group", plate_gId)} include_merged 
+
+###############################################################################
+# MODIFY CONCRETE: HOLES AND CUTS
+###############################################################################
+
+# Subtract mortar volume from concrete to create annular gap
+subtract body in volume in group mortar from body in volume in group concrete keep_tool
+
+# Drill cylindrical hole through concrete
+webcut volume in concrete with cylinder radius {dHole/2} axis y center 0 0 0
+
+# Cut concrete below anchor embedment depth
+webcut volume in concrete with general plane location 0 {-hef-dHole} 0 direction 0 1 0
+
+# Additional cuts to limit concrete domain size
+webcut volume in concrete with general plane location {Hplate/2} 0 0 direction 1 0 0
+webcut volume in concrete with general plane location {-Hplate/2} 0 0 direction 1 0 0
+
+webcut volume in concrete with general plane location {H_hor/4} 0 0 direction 1 0 0
+webcut volume in concrete with general plane location {-H_hor/4} 0 0 direction 1 0 0
+
+webcut volume in concrete with general plane location 0 0 {-Hplate/2} direction 0 0 1
+webcut volume in concrete with general plane location 0 0 {-H_hor/4} direction 0 0 1
+
+# Ensure conforming topology
+imprint volume in group {concrete_gId}
+merge volume in group {concrete_gId}
+
+###############################################################################
+# MODIFY PLATE
+###############################################################################
+
+# Cut anchor hole in plate
+subtract body in volume in group anchor from body in volume in group plate keep_tool
+
+# Cut mortar clearance hole
+webcut volume in plate with cylinder radius {dHole/2} axis y center 0 0 0
+
+imprint volume in group {plate_gId}
+merge volume in group {plate_gId}
+
+###############################################################################
+# MODIFY MORTAR AND ANCHOR
+###############################################################################
+
+# Remove anchor volume from mortar (leave annulus)
+subtract body in volume in group anchor from body in volume in group mortar keep_tool
+
+# Clean anchor topology
+imprint volume in group {anchor_gId}
+merge volume in group {anchor_gId}
+
+###############################################################################
+# USE SYMMETRY TO REDUCE MODEL SIZE
+###############################################################################
+
+# Cut model along Z=0 and X=0 planes
+webcut volume all with plane zplane
+webcut volume all with plane xplane
+
+# Keep only one quarter
+delete volume all with z_coord > 0
+
+############################################################################################# imprint merge
+imprint volume in group {concrete_gId} {plate_gId} 
+merge volume in group concrete
+merge volume in group plate
+merge volume in group anchor
+merge volume in group mortar
+
+###############################################################################
+# MESH SIZING (MOST IMPORTANT PART)
+###############################################################################
+# special treatment of surface below anchor
+create group "surfBelowAnchor"
+#{surfBelowAnchor_gId = Id("group")}
+group surfBelowAnchor add vertex in group concrete expand with x_coord < {TOL} and z_coord > {-TOL} and y_coord < {BBox_YMin("group", concrete_gId)+TOL}
+group surfBelowAnchor add surface in (vertex in group surfBelowAnchor) with y_coord < {BBox_YMin("group", concrete_gId)+TOL}
+group surfBelowAnchor add curve in (vertex in group surfBelowAnchor) with y_coord < {BBox_YMin("group", concrete_gId)+TOL}
+
+################################### size vertical curves in group concrete
+# curves below the embedment height
+curve in volume in group concrete with (y_coord < {-hef-dHole-TOL} and y_coord > {-H+TOL})\
+                             interval {16}
+
+# curves above the embedment height
+curve in volume in group concrete with (y_coord > {-hef-dHole+TOL} and y_coord < {-hef+TOL})\
+                             interval {2}
+
+curve in volume in group concrete with (y_coord > {-hef+TOL} and y_coord < {+TOL})\
+                             interval {4}
+
+################################### size horizontal curves in group concrete top between hole and steel plate
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (z_coord > {-TOL})\
+                                  and (x_coord > {dHole/2+TOL} and x_coord < {Hplate/2-TOL})\
+                                  interval {8}
+
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (z_coord > {-TOL})\
+                                  and (x_coord < {-dHole/2-TOL} and x_coord > {-Hplate/2+TOL})\
+                                  interval {8}
+
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (z_coord < {-H_hor/2+TOL})\
+                                  and (x_coord > {TOL} and x_coord < {Hplate/2-TOL})\
+                                  interval {8}
+
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (z_coord < {-H_hor/2+TOL})\
+                                  and (x_coord < {-TOL} and x_coord > {-Hplate/2+TOL})\
+                                  interval {8}
+
+################################### size horizontal curves in group concrete top between steel plate and quarter-width
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (z_coord > {-TOL})\
+                                  and (x_coord > {Hplate/2+TOL} and x_coord < {H_hor/4-TOL})\
+                                  interval {8}
+
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (z_coord > {-TOL})\
+                                  and (x_coord < {-Hplate/2-TOL} and x_coord > {-H_hor/4+TOL})\
+                                  interval {8}
+
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (z_coord < {-H_hor/2+TOL})\
+                                  and (x_coord > {TOL} and x_coord < {H_hor/4-TOL})\
+                                  interval {8}
+
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (z_coord < {-H_hor/2+TOL})\
+                                  and (x_coord < {-TOL} and x_coord > {-H_hor/4+TOL})\
+                                  interval {8}
+                                  
+################################### size horizontal curves in group concrete top outside quarter-width
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (z_coord > {-TOL})\
+                                  and (x_coord > {H_hor/4-TOL})\
+                                  interval {6}
+
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (z_coord > {-TOL})\
+                                  and (x_coord < {-H_hor/4+TOL})\
+                                  interval {6}
+
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (z_coord < {-H_hor/2+TOL})\
+                                  and (x_coord > {H_hor/4-TOL})\
+                                  interval {6}
+
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (z_coord < {-H_hor/2+TOL})\
+                                  and with (x_coord < {-H_hor/4+TOL})\
+                                  interval {6}
+
+################################### size horizontal curves in group concrete top parallel to axis z at left
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (x_coord < {-H_hor/2+TOL})\
+                                  and (z_coord < {-TOL} and z_coord > {-Hplate/2-TOL})\
+                                  interval {4}
+
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (x_coord < {-H_hor/2+TOL})\
+                                  and (z_coord < {-Hplate/2-TOL} and z_coord > {-H_hor/4+TOL})\
+                                  interval {4}
+
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (x_coord < {-H_hor/2+TOL})\
+                                  and (z_coord < {-H_hor/4-TOL} and z_coord > {-H_hor/2+TOL})\
+                                  interval {4}
+
+################################### size horizontal curves in group concrete top parallel to axis z at right
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (x_coord > {H_hor/2-TOL})\
+                                  and (z_coord < {-TOL} and z_coord > {-Hplate/2-TOL})\
+                                  interval {4}
+
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (x_coord > {H_hor/2-TOL})\
+                                  and (z_coord < {-Hplate/2-TOL} and z_coord > {-H_hor/4+TOL})\
+                                  interval {4}
+
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and (x_coord > {H_hor/2-TOL})\
+                                  and (z_coord < {-H_hor/4-TOL} and z_coord > {-H_hor/2+TOL})\
+                                  interval {4}
+
+#################################### size horizontal curves in top hole
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and with (z_coord < {-TOL} and z_coord > {-dHole/2+TOL})\
+                                  and with (x_coord > {+TOL} and x_coord < {dHole/2-TOL})\
+                                  interval {8}
+
+curve in volume in group concrete with (y_coord < {TOL} and y_coord > {-TOL})\
+                                  and with (z_coord < {-TOL} and z_coord > {-dHole/2+TOL})\
+                                  and with (x_coord < {-TOL} and x_coord > {-dHole/2+TOL})\
+                                  interval {8}
+
+####################### pick curves on plate ####################### 
+# curves at top side plate at uberstand height
+# between hole cut and anchor cut
+
+curve in volume in group plate with (x_coord * x_coord + z_coord * z_coord > {dAnchor/2 * dAnchor/2-TOL})\
+                                and (x_coord * x_coord + z_coord * z_coord < {dAnchor/2 * dAnchor/2+TOL})\
+                                and (y_coord > {-TOL} and y_coord < {+TOL}) interval {8}
+
+curve in volume in group plate with (x_coord * x_coord + z_coord * z_coord > {dHole/2 * dHole/2-TOL})\
+                                and (x_coord * x_coord + z_coord * z_coord < {dHole/2 * dHole/2+TOL})\
+                                and (y_coord > {-TOL} and y_coord < {+TOL}) interval {8}
+                                
+curve in volume in group plate with (x_coord * x_coord + z_coord * z_coord > {dAnchor/2 * dAnchor/2+TOL})\
+                                and (x_coord * x_coord + z_coord * z_coord < {dHole/2 * dHole/2-TOL})\
+                                and (y_coord > {-TOL} and y_coord < {+TOL}) interval {1}
+                                
+curve in volume in group plate with (y_coord < {uberstand-TOL} and y_coord > {TOL})\
+                             interval {3}
+
+####################### pick curves on mortar ####################### 
+# curves above the embedment height
+curve in volume in group mortar with (y_coord > {-hef+TOL} and y_coord < {-TOL})\
+                             interval {24}
+
+# curves on top side of the mortar
+# between hole cut and anchor cut
+curve in volume in group mortar with ((x_coord < {dAnchor/2 -TOL} and x_coord > {-TOL} and z_coord > {-dAnchor/2 +TOL} and z_coord < {TOL} )\
+                                or (x_coord > {-dAnchor/2 +TOL} and x_coord < {TOL} and z_coord > {-dAnchor/2 +TOL} and z_coord < {TOL} ))\
+                                and (y_coord > {-TOL} and y_coord < {+TOL}) interval {8}
+
+# curves on bottom side of the mortar
+# between hole cut and anchor cut
+curve in volume in group mortar with ((x_coord < {dAnchor/2 -TOL} and x_coord > {-TOL} and z_coord > {-dAnchor/2 +TOL} and z_coord < {TOL} )\
+                                or (x_coord > {-dAnchor/2 +TOL} and x_coord < {TOL} and z_coord > {-dAnchor/2 +TOL} and z_coord < {TOL} ))\
+                                and (y_coord > {-hef-TOL} and y_coord < {-hef+TOL}) interval {8}
+
+####################### pick curves on anchor ####################### 
+# curves above the embedment height
+curve in volume in group anchor with (y_coord > {-hef+TOL} and y_coord < {-TOL})\
+                             interval {16}
+
+# curves on top side of the anchor
+# between hole cut and anchor cut
+curve in volume in group anchor with ((x_coord < {dAnchor/2 -TOL} and x_coord > {-TOL} and z_coord > {-dAnchor/2 +TOL} and z_coord < {TOL} )\
+                                or (x_coord > {-dAnchor/2 +TOL} and x_coord < {TOL} and z_coord > {-dAnchor/2 +TOL} and z_coord < {TOL} ))\
+                                and (y_coord > {uberstand - TOL} and y_coord < {uberstand + TOL}) interval {16}
+
+# curves on bottom side of the anchor
+# between hole cut and anchor cut
+curve in volume in group anchor with ((x_coord < {dAnchor/2 -TOL} and x_coord > {-TOL} and z_coord > {-dAnchor/2 +TOL} and z_coord < {TOL} )\
+                                or (x_coord > {-dAnchor/2 +TOL} and x_coord < {TOL} and z_coord > {-dAnchor/2 +TOL} and z_coord < {TOL} ))\
+                                and (y_coord > {-hef-TOL} and y_coord < {-hef+TOL}) interval {16}
+                                
+# curves on anchor between plate bottom and plate top
+curve in volume in group anchor with ((x_coord < {dAnchor/2 -TOL} and x_coord > {-TOL} and z_coord > {-dAnchor/2 +TOL} and z_coord < {TOL} )\
+                                or (x_coord > {-dAnchor/2 +TOL} and x_coord < {TOL} and z_coord > {-dAnchor/2 +TOL} and z_coord < {TOL} ))\
+                                and (y_coord < {uberstand - TOL} and y_coord > {TOL}) interval {3}
+
+
+######################### fix skewness in group concrete ##################
+control skew surface in group plate expand
+
+# apply skew control to surfaces of only this volume
+control skew surface in volume in group concrete 
+# control skew surface all
+
+###############################################################################
+# MESH GENERATION
+###############################################################################
+mesh volume in group concrete
+mesh volume in group plate
+mesh volume in group anchor
+mesh volume in group mortar
+############################################################################################# refine mesh
+#refine volume in group plate using curve with y_max < {TOL} in volume in group plate
+
+create group "refineConcrete"
+#{refineConcrete_gId = Id("group")}
+
+create group "firstCone"
+#{firstCone_gId = Id("group")}
+#{slope = 1.75}
+
+group firstCone add hex with x_coord * x_coord + z_coord * z_coord - ( y_coord + {3./4.*H} ) * ( y_coord + {3./4.*H} ) * {slope^2} < 0 and y_coord > {-hef-dHole} in concrete expand
+group refineConcrete add hex in firstCone
+group refineConcrete remove hex with x_coord * x_coord + z_coord * z_coord > {(3./4.*H)^2}
+
+refine hex in group refineConcrete
+
+################### add smoothing to avoid elements with  negative Jacobi
+#volume in group concrete smooth scheme condition number beta 2.0 cpu 0.5
+#smooth volume in group concrete
+################### 
+
+###############################################################################
+# MATERIAL DEFINITIONS (FOR ABAQUS EXPORT)
+###############################################################################
+create material "concrete" property_group "CUBIT-ABAQUS" 
+create material "steelAnchor" property_group "CUBIT-ABAQUS" 
+create material "steelPlate" property_group "CUBIT-ABAQUS" 
+create material "mortar" property_group "CUBIT-ABAQUS" 
+
+###############################################################################
+# BLOCK DEFINITIONS (ELEMENT GROUPS)
+###############################################################################
+# Concrete: quadratic hex elements
+create block {NumBlocks()+1}
+block {NumBlocks()} name "concrete"
+block {NumBlocks()} add hex in volume in group concrete
+block {NumBlocks()} element type hex20
+block {NumBlocks()} material "concrete"
+#{concrete_bId = NumBlocks()}
+
+# Anchor
+create block {NumBlocks()+1}
+block {NumBlocks()} name "anchor"
+block {NumBlocks()} add volume in group anchor
+block {NumBlocks()} element type hex8
+block {NumBlocks()} material "steelAnchor"
+#{anchor_bId = NumBlocks()}
+
+# Plate
+create block {NumBlocks()+1}
+block {NumBlocks()} name "plate"
+block {NumBlocks()} add volume in group plate
+block {NumBlocks()} element type hex8
+block {NumBlocks()} material "steelPlate"
+#{plate_bId = NumBlocks()}
+
+# Mortar
+create block {NumBlocks()+1}
+block {NumBlocks()} name "mortar"
+block {NumBlocks()} add volume in group mortar
+block {NumBlocks()} element type hex8
+block {NumBlocks()} material "mortar"
+#{mortar_bId = NumBlocks()}
+
+###############################################################################
+# NODESETS AND SIDESETS (BOUNDARY CONDITIONS & CONTACT)
+###############################################################################
+create nodeset {NumNodesets()+1}
+nodeset {NumNodesets()} name 'z_symm'
+nodeset {NumNodesets()} add node with z_coord > {-TOL}
+##nodeset {NumNodesets()} add node with x_coord < {TOL}
+
+create nodeset {NumNodesets()+1}
+nodeset {NumNodesets()} name 'left'
+nodeset {NumNodesets()} add node with x_coord < {-H_hor/2+TOL}
+
+create nodeset {NumNodesets()+1}
+nodeset {NumNodesets()} name 'right'
+nodeset {NumNodesets()} add node with x_coord > {H_hor/2-TOL}
+
+create nodeset {NumNodesets()+1}
+nodeset {NumNodesets()} name 'back'
+nodeset {NumNodesets()} add node with z_coord < {-H_hor/2+TOL}
+
+create nodeset {NumNodesets()+1}
+nodeset {NumNodesets()} name 'bottom'
+nodeset {NumNodesets()} add node with y_coord < {-H+TOL}
+
+create nodeset {NumNodesets()+1}
+nodeset {NumNodesets()} name 'plate_left_loading'
+nodeset {NumNodesets()} add node in volume in group plate with x_coord < {-Hplate/2+TOL} and y_coord > {5-TOL} and y_coord < {5+TOL}
+
+############################################################################################# sideset definitions
+create sideset {NumSidesets()+1}
+sideset {NumSidesets()} name 'concrete_top'
+sideset {NumSidesets()} add face in surface in volume in group concrete with y_coord > {BBox_YMax("group", concrete_gId)-TOL}
+
+create sideset {NumSidesets()+1}
+sideset {NumSidesets()} name 'concrete_to_mortar'
+sideset {NumSidesets()} add face in (surface with (x_max < {dHole/2+TOL} or x_min > {-dHole/2-TOL}) \
+                                           and (x_max > {-H_hor/2+TOL} and x_min < { H_hor/2-TOL})\
+                                           and y_max - y_min > {TOL} \
+                                           and z_max - z_min > {TOL} \
+                                           in volume in group concrete with not is_merged)
+
+create sideset {NumSidesets()+1}
+sideset {NumSidesets()} name 'plate_bottom'
+sideset {NumSidesets()} add face in surface in volume in group plate with y_coord < {BBox_YMin("group", plate_gId)+TOL}
+
+create sideset {NumSidesets()+1}
+sideset {NumSidesets()} name 'plate_to_anchor'
+sideset {NumSidesets()} add face in (surface in volume in group plate with (x_max < {dAnchor/2+TOL} and x_max > {dAnchor/2-TOL}) or (x_min > {-dAnchor/2-TOL} and x_min < {-dAnchor/2+TOL})) 
+
+create sideset {NumSidesets()+1}
+sideset {NumSidesets()} name 'anchor_to_mortar'
+sideset {NumSidesets()} add face in (surface with (x_max > {dAnchor/2-TOL} or x_min < {-dAnchor/2+TOL})\
+                                     and y_coord < {TOL}\
+                                     and y_max - y_min > {TOL}\
+                                     and z_max - z_min > {TOL}\
+                                     in volume in group anchor with not is_merged)
+
+create sideset {NumSidesets()+1}
+sideset {NumSidesets()} name 'anchor_to_plate'
+sideset {NumSidesets()} add face in (surface with (x_max > {dAnchor/2-TOL} or x_min < {dAnchor/2+TOL})\
+                                             and y_coord >{TOL}\
+                                             and y_max - y_min > {TOL}\ 
+                                             and z_max - z_min > {TOL}\
+                                             in volume in group anchor with not is_merged)
+
+create sideset {NumSidesets()+1}
+sideset {NumSidesets()} name 'mortar_to_anchor'
+sideset {NumSidesets()} add face in (surface with (x_coord * x_coord+ z_coord * z_coord- {dAnchor/2}*{dAnchor/2} < {TOL})\ 
+                         and (x_coord * x_coord+ z_coord * z_coord- {dAnchor/2}*{dAnchor/2} > {-TOL})\
+                         in volume in group mortar with not is_merged)
+                         
+create sideset {NumSidesets()+1}
+sideset {NumSidesets()} name 'mortar_to_concrete'
+sideset {NumSidesets()} add face in (surface with (x_max > {dHole/2-TOL} or x_min < {-dHole/2+TOL})\
+                                             and y_max - y_min > {TOL}\ 
+                                             and z_max - z_min > {TOL}\
+                                             in volume in group mortar with not is_merged)
+
+###############################################################################
+# EXPORT TO ABAQUS
+###############################################################################
+export abaqus "./steel.inp" block {anchor_bId} {plate_bId} {mortar_bId} partial overwrite
+export abaqus "./concrete.inp" block {concrete_bId} partial overwrite
+
+###############################################################################
+# QUALITY CHECK AND VISUALIZATION
+###############################################################################
+quality volume all scaled jacobian global draw histogram draw mesh
+
+color volume in concrete khaki
+color volume in anchor deepskyblue
+color volume in plate limegreen
+color volume in mortar orangered
+##draw volume all
+
+
+
+
+
+
+
+
+
+
