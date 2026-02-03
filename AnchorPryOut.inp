@@ -123,6 +123,10 @@ concrete-1.concrete_to_mortar, steel-1.mortar_to_concrete
 ** Normal, shear-1, shear-2 stiffness values
 *Elastic, type=TRACTION
 6e2, 3e2, 3e2
+*Damage Initiation, criterion=MAXS
+34, 34, 34
+*Damage Evolution, type=DISPLACEMENT
+5
 *DENSITY
 3.0e-9
 **
