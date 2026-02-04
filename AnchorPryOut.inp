@@ -110,7 +110,7 @@ concrete-1.concrete_to_mortar, steel-1.mortar_to_concrete
 *Material, name=CONCRETE
 ** Simplified linear elastic concrete model
 *Elastic
-2e2, 0.3
+30000., 0.2
 *DENSITY
 2.4e-9
 ** ------------------------------------------------------------
@@ -118,17 +118,11 @@ concrete-1.concrete_to_mortar, steel-1.mortar_to_concrete
 ** ------------------------------------------------------------
 *Material, name=stick_slip
 ** Elastic traction–separation stiffness
-** Damage initiates when maximum stress is exceeded
-** Damage evolves based on relative displacement
 ** Normal, shear-1, shear-2 stiffness values
 *Elastic, type=TRACTION
-6e2, 3e2, 3e2
-*Damage Initiation, criterion=MAXS
-34, 34, 34
-*Damage Evolution, type=DISPLACEMENT
-5
+56.67, 28.35, 28.35
 *DENSITY
-3.0e-9
+2.0e-9
 **
 ** ============================================================
 ** CONTACT INTERACTIONS

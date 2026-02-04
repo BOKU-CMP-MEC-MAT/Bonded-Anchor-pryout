@@ -17,7 +17,7 @@ reset
 {#hef = 50}
 
 # Anchor diameter
-{#dAnchor = 14}
+{#dAnchor = 16}
 
 # Optional head rotation angle (currently unused)
 {#alphaHead = 0}                 # degrees
@@ -45,7 +45,7 @@ group anchor add volume {Id("volume")}
 volume in group anchor move y {-BBox_YMax("group", anchor_gId)} include_merged 
 
 # Additional protruding length above concrete (anchor overhang)
-{#uberstand = 15}
+{#uberstand = 16}
 
 # Sweep the top surface upward to create the protruding anchor part
 sweep surface with y_coord > {-BBox_YMax("group", anchor_gId) - TOL} \
@@ -481,7 +481,7 @@ nodeset {NumNodesets()} add node with y_coord < {-H+TOL}
 
 create nodeset {NumNodesets()+1}
 nodeset {NumNodesets()} name 'plate_left_loading'
-nodeset {NumNodesets()} add node in volume in group plate with x_coord < {-Hplate/2+TOL} and y_coord > {5-TOL} and y_coord < {5+TOL}
+nodeset {NumNodesets()} add node in volume in group plate with x_coord < {-Hplate/2+TOL} and y_coord > {uberstand/3-TOL} and y_coord < {uberstand/3+TOL}
 
 ############################################################################################# sideset definitions
 create sideset {NumSidesets()+1}
