@@ -112,7 +112,7 @@ concrete-1.concrete_to_mortar, steel-1.mortar_to_concrete
 *Elastic
 27000., 0.18
 *DENSITY
-2.24e-9
+2.4e-9
 ** ------------------------------------------------------------
 ** Cohesive (stick–slip) material for mortar
 ** ------------------------------------------------------------
