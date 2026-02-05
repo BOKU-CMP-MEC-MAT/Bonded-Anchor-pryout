@@ -99,20 +99,20 @@ concrete-1.concrete_to_mortar, steel-1.mortar_to_concrete
 ** Linear elastic steel properties
 ** Density (mass units consistent with model units)
 *Elastic
-200000., 0.3
+200000., 0.33
 *DENSITY
 7.85e-9
 *Material, name=STEEL_PLATE
 *Elastic
-200000., 0.3
+200000., 0.33
 *DENSITY
 7.85e-9
 *Material, name=CONCRETE
 ** Simplified linear elastic concrete model
 *Elastic
-30000., 0.2
+27000., 0.18
 *DENSITY
-2.4e-9
+2.24e-9
 ** ------------------------------------------------------------
 ** Cohesive (stick–slip) material for mortar
 ** ------------------------------------------------------------
@@ -120,7 +120,7 @@ concrete-1.concrete_to_mortar, steel-1.mortar_to_concrete
 ** Elastic traction–separation stiffness
 ** Normal, shear-1, shear-2 stiffness values
 *Elastic, type=TRACTION
-56.67, 28.35, 28.35
+5400, 2700, 2700
 *DENSITY
 2.0e-9
 **
