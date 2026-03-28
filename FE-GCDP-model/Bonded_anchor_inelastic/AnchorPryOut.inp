@@ -134,7 +134,7 @@ RF
 ** 
 ** Name: load Type: Displacement/Rotation
 *Boundary, type=displacement
-steel-1.plate_left_loading, 1, 1, 10.0
+steel-1.plate_left_loading, 1, 1, 5.0
 ** OUTPUT REQUESTS
 ** 
 *Print, contact=yes
