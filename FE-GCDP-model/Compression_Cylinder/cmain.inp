@@ -25,12 +25,14 @@ weak_region
 *constraint, type=equalValueLagrangian, name=top_plate_equal_lateral_x
 nSet=top_z
 field= displacement
-component=1
+** Python convention is followed internally
+component=0
 
 *constraint, type=equalValueLagrangian, name=top_plate_equal_lateral_y
 nSet=top_z
 field= displacement
-component=2
+** Python convention is followed internally
+component=1
 
 *job, name=120sCompressiveEdelweissFE, domain=3d
 *solver, solver=NISTParallelForMarmotElements, name=theSolver
