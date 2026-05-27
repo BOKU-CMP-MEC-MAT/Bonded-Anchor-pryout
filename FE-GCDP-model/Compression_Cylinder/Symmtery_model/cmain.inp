@@ -1,0 +1,72 @@
+*include, input=mesh_cylinder_coarse20.inp
+
+*material, name=GCDP, id=myMaterial
+**E          nu          fcy         fcu         fbu         ftu         Df          Ah
+30600,       0.2,        12.9,       32.3,       37.5,      2.720,       0.85,       0.08,
+**Bh         Ch          Dh             As          epsF        lDamage     m      maxDmg
+0.003,       2.0,        0.000001,      15,         0.00472,      4,          1,       0.99,
+**drvdvMthd dTThrshHold density     UNUSED      UNUSED      UNUSED      UNUSED      UNUSED
+0,          1e-12
+
+*material, name=GCDP, id=myMaterialweak
+**E          nu          fcy         fcu         fbu         ftu         Df          Ah
+30600,       0.2,        12.9,       32.3,       37.5,      2.70,       0.85,       0.08,
+**Bh         Ch          Dh             As          epsF        lDamage     m      maxDmg
+0.003,       2.0,        0.000001,      15,         0.00472,      4,          1,       0.99,
+**drvdvMthd dTThrshHold density     UNUSED      UNUSED      UNUSED      UNUSED      UNUSED
+0,          1e-12
+
+*section, name=section1, material=myMaterial, type=solid
+all_els
+
+*section, name=section2, material=myMaterialweak, type=solid
+weak_region
+
+*constraint, type=equalValueLagrangian, name=top_plate_equal_lateral_x
+nSet=top_z
+field= displacement
+component=0
+
+*constraint, type=equalValueLagrangian, name=top_plate_equal_lateral_y
+nSet=top_z
+field= displacement
+component=1
+
+*job, name=120sCompressiveEdelweissFE, domain=3d
+*solver, solver=NISTParallelForMarmotElements, name=theSolver
+
+*step, solver=theSolver, maxInc=0.01, minInc=1e-5, maxNumInc=2000, maxIter=25, stepLength=1
+** Bottom: Clamped 
+** Top: Imposed verical displacement and constrained lateral movement to be common between nodes
+dirichlet, name=movDP_bottom,  nSet=bottom_z,  field=displacement, 1=0, 2=0, 3=0
+dirichlet, name=movDP_top,  nSet=top_z,  field=displacement, 3=-2
+dirichlet, name=Symmetry_x,  nSet=symm_x,  field=displacement, 1=0
+** Added a small nudge on the top to provoke localization if needed
+nodeforces, name=Nudge_top,  nSet=nudge_top_back,  field=displacement, 2=0.01
+
+*fieldOutput
+create=perNode, elSet=all, field=displacement, result=U, name=displacement
+create=perNode, elSet=all, field=displacement, result=P, name=RF
+create=perNode, name=RF_3, nSet=top_z, field=displacement, result=P, f(x)='sum(x[:,2])', saveHistory=True, export=rf_res
+create=perNode, name=U_3, nSet=top_z, field=displacement, result=U, f(x)='-mean(x[:,2])', saveHistory=True, export=u_res
+create=perElement, name=stress, elSet=all, result=stress, quadraturePoint=0:8, f(x)='np.mean(x, axis=1)'
+create=perElement, name=strain, elSet=all, result=strain, quadraturePoint=0:8, f(x)='np.mean(x, axis=1)'
+create=perElement, name=alphaP, elSet=all, result=alphaP, quadraturePoint=0:8, f(x)='max ( x[:,:], axis=1)'
+create=perElement, name=omega, elSet=all, result=omega, quadraturePoint=0:8, f(x)='max ( x[:,:], axis=1)'
+create=perElement, name=alphaD, elSet=all, result=alphaD, quadraturePoint=0:8, f(x)='np.mean(x,axis=1)'
+create=perElement, name=I1p,    elSet=all, result=I1p,    quadraturePoint=0:8, f(x)='np.mean(x[:,:],axis=1)'
+
+** create output data to open with paraview
+*output, type=ensight, name=120sCompressiveEdelweissFE
+create=perNode, fieldOutput=displacement
+create=perNode, fieldOutput=RF
+create=perElement, fieldOutput=stress
+create=perElement, fieldOutput=strain
+create=perElement, fieldOutput=alphaP
+create=perElement, fieldOutput=omega
+create=perElement, fieldOutput=alphaD
+create=perElement, fieldOutput=I1p
+configuration, overwrite=yes
+
+***output, type=meshplot, name=StressTau11
+**figure=1, axSpec=111, c=r, ls=solid, create=xyData, x=U_3, y=RF_3
