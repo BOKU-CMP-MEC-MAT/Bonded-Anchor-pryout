@@ -4,9 +4,9 @@ reset
 
 ############################################################################################# webcut intervals
 # webcut vertical
-{#intV=12}
+{#intV=24}
 # webcut horizontal
-{#intH=4}
+{#intH=8}
 
 ############################################################################################# stud geometry
 {#hef=50.0}
@@ -229,17 +229,15 @@ curve in volume in group concrete with (x_coord * x_coord + z_coord * z_coord > 
 #internal straight curves
 curve in volume in group concrete with (x_coord * x_coord + z_coord * z_coord > {dHole/2 * dHole/2+TOL})\
                                 and (x_coord * x_coord + z_coord * z_coord < {(OHole) * (OHole)-TOL})\
-                                interval {24}
+                                and (y_coord > {-hef-dHole-TOL})\ 
+                                interval {46}
 
-# outer curves to the right
-#curve in volume in group concrete with (x_coord * x_coord + z_coord * z_coord > {(OHole) * (OHole)+TOL})\
-#                                and (x_coord < {(H_hor/2-TOL)})\
-#                                interval {4}
-
-# outer curves to the left
-#curve in volume in group concrete with (x_coord * x_coord + z_coord * z_coord > {(OHole) * (OHole)+TOL})\
-#                                and (x_coord > {(-H_hor/2+TOL)})\
-#                                interval {4}
+#internal curves concrete bottom between hole diameter and webcut
+curve in volume in group concrete with (x_coord * x_coord + z_coord * z_coord > {dHole/2 * dHole/2+TOL})\
+                                and (x_coord * x_coord + z_coord * z_coord < {(OHole) * (OHole)-TOL})\
+                                and (y_coord > {-H-TOL})\
+                                and (y_coord < {-H+TOL})\
+                                interval {2}
 
 #outer boundaries
 #right  vertical curves
@@ -247,7 +245,7 @@ curve in volume in group concrete with (x_coord > {H_hor/2-TOL})\
                                 and (x_coord < {H_hor/2+TOL})\
                                 and (y_coord > {-hef})\
                                 and (y_coord < {-TOL})\
-                                interval {intV}
+                                interval {intV/12}
 
 curve in volume in group concrete with (x_coord > {H_hor/2-TOL})\
                                 and (x_coord < {H_hor/2+TOL})\
@@ -266,7 +264,7 @@ curve in volume in group concrete with (x_coord > {-H_hor/2-TOL})\
                                 and (x_coord < {-H_hor/2+TOL})\
                                 and (y_coord > {-hef+TOL})\
                                 and (y_coord < {-TOL})\
-                                interval {intV}
+                                interval {intV/12}
 
 curve in volume in group concrete with (x_coord > {-H_hor/2-TOL})\
                                 and (x_coord < {-H_hor/2+TOL})\
@@ -282,11 +280,11 @@ curve in volume in group concrete with (x_coord > {-H_hor/2-TOL})\
                                 interval {6}
                                 
 #front vertical curves
-curve in volume in group concrete with (z_coord > {0-TOL})\
-                                and (z_coord < {0+TOL})\
-                                and (y_coord > {-hef+TOL})\
-                                and (y_coord < {-TOL})\
-                                interval {intV}
+#curve in volume in group concrete with (z_coord > {0-TOL})\
+#                                and (z_coord < {0+TOL})\
+#                                and (y_coord > {-hef+TOL})\
+#                                and (y_coord < {-TOL})\
+#                                interval {intV}
 
 curve in volume in group concrete with (z_coord > {0-TOL})\
                                 and (z_coord < {0+TOL})\
@@ -304,7 +302,7 @@ curve in volume in group concrete with (z_coord > {-H_hor/2-TOL})\
                                 and (z_coord < {-H_hor/2+TOL})\
                                 and (y_coord > {-hef+TOL})\
                                 and (y_coord < {-TOL})\
-                                interval {intV}
+                                interval {intV/12}
 
 curve in volume in group concrete with (z_coord > {-H_hor/2-TOL})\
                                 and (z_coord < {-H_hor/2+TOL})\
@@ -384,6 +382,11 @@ curve in volume in group concrete with (z_coord > {0-TOL})\
                                 and (x_coord * x_coord + z_coord * z_coord > {(OHole) * (OHole)-TOL})\
                                 interval {intH}
                                 
+# pick external straight curves to avoid the unecessary elements
+curve in volume in group concrete with (x_coord * x_coord + z_coord * z_coord > {(OHole) * (OHole)+TOL})\
+                                  and (x_coord * x_coord + z_coord * z_coord < {(2*OHole) * (2*OHole)-TOL})\
+                                interval {intH/2}
+
 ##{#bias_factor = 2./5.}
 ##curve in volume in group all with y_coord < {-hef} scheme bias factor {bias_factor}
 

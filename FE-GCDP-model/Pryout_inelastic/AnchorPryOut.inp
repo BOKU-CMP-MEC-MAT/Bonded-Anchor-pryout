@@ -28,7 +28,7 @@
 
 ** UEL Props
 **
-*Include, input="./incfiles/uelprops_GCDP.inc"
+*Include, input="./incfiles/uelprops_GCDP_l_2.inc"
 **
 
 ** ASSEMBLY
