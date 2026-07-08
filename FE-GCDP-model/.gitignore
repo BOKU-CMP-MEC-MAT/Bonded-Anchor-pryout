@@ -1,0 +1,15 @@
+*.zip
+*.mp4
+*.jou
+*.e
+*.case
+*.var
+*.geo
+*.odb
+*.prt
+*.msg
+*.sta
+*.dat
+*.lck
+*.com
+abaqus.rpy

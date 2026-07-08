@@ -1,0 +1,86 @@
+** We have a UEL, which has 4 nodes with displacement and nonlocal damage DOFs,
+*defineElementType, element=U004, shape=hexa20
+** .. and a standard Abaqus CPS4, which also has also 4 nodes
+*defineElementType, element=C3D20R, shape=hexa20
+*defineElementType, element=C3D8, shape=hexa8
+*defineElementType, element=COH3D8, shape=hexa8
+**
+** NODAL VARIABLES
+**
+** Ensight expects that vectors have 3 components, but Abaqus writes only 2 for 2D. So we zero fill the z direction, by specifying dimensions=3
+*ensightPerNodeVariableJob,   name=nodeDisplacements, dimensions=3
+*ensightPerNodeVariableJobEntry, job=nodeDisplacements,  set=ALL, result=U, fillMissingValuesTo=0.0
+*ensightPerNodeVariableJobEntry, job=nodeDisplacements,  set=ASSEMBLY_CONCRETE-1_CONCRETE, result=U, fillMissingValuesTo=0.0, values=0:3
+*ensightPerNodeVariableJobEntry, job=nodeDisplacements,  set=ASSEMBLY_STEEL-1_PLATE, result=U, fillMissingValuesTo=0.0, values=0:3
+*ensightPerNodeVariableJobEntry, job=nodeDisplacements,  set=ASSEMBLY_STEEL-1_ANCHOR, result=U, fillMissingValuesTo=0.0, values=0:3
+*ensightPerNodeVariableJobEntry, job=nodeDisplacements,  set=ASSEMBLY_STEEL-1_MORTAR, result=U, fillMissingValuesTo=0.0, values=0:3
+
+*ensightPerNodeVariableJob, name=nodeReactionForces, dimensions=3, 
+*ensightPerNodeVariableJobEntry, setType=nSet, set=ASSEMBLY_STEEL-1_PLATE_LEFT_LOADING, job=nodeReactionForces, result=RF, fillMissingValuesTo=0.0
+
+** ** reaction forces are written only at the boundary, so we either need to specificy that all missing values at interior nodes are zerod ...
+** *ensightPerNodeVariableJob, name=nodeReactionForces, dimensions=3, 
+** *ensightPerNodeVariableJobEntry, setType=elSet, set=ALL, job=nodeReactionForces, result=RF, fillMissingValuesTo=0.0
+** ** ... or we directly export them to the node sets the boundary. Still we need to fill for z-direction:
+** *ensightPerNodeVariableJobEntry, setType=nSet, set=SETBOTTOM, job=nodeReactionForces, result=RF, fillMissingValuesTo=0.0
+
+** nonlocal damage is a scalar, so no problem here
+*ensightPerNodeVariableJob,   name=nonlocalDamage, dimensions=1
+*ensightPerNodeVariableJobEntry, job=nonlocalDamage,  set=ASSEMBLY_CONCRETE-1_CONCRETE, result=NT, fillMissingValuesTo=0.0, values=0
+** **
+** **
+** ** ELEMENTAL VARIABLES
+** **
+** ** convert the UEL SDVs (which contain material SDVs + stresses and strains). 
+** ** we need to define the periodical pattern of 4 gauss points within the SDVs, seperated by a data distance of 18, and with an initial offset of 0
+** ** of course, this is dependent on the UEL!
+** **
+** ** assumed layout of the SDV vector per UEL:
+** ** [ [ qpInitialOffset ... ] [ DATA of QP1 ...  qpDistance -> ] [ DATA of QP 2 ... qpDistance -> ] ]
+
+*UELSDVToQuadraturePoints, set=ASSEMBLY_CONCRETE-1_CONCRETE, destination=ConcUelSDVs, qpCount=8, qpInitialOffset=0, qpDistance=16
+
+** ** furthermore, we may want to compute the average over all SDVs
+*computeAverageOverQuadraturePoints, set=ASSEMBLY_CONCRETE-1_CONCRETE, result=ConcUelSDVs
+** **
+** Scalar Variables are accessed in the SDV field by means of their index ....
+*ensightPerElementVariableJob, name=alphaP, dimensions=1
+*ensightPerElementVariableJobEntry, set=ASSEMBLY_CONCRETE-1_CONCRETE, job=alphaP, result=ConcUelSDVs, location=computed, which=average,  values=12
+*ensightPerElementVariableJob, name=alphaD, dimensions=1
+*ensightPerElementVariableJobEntry, set=ASSEMBLY_CONCRETE-1_CONCRETE, job=alphaD, result=ConcUelSDVs, location=computed, which=average,  values=13
+*ensightPerElementVariableJob, name=damage, dimensions=1
+*ensightPerElementVariableJobEntry, set=ASSEMBLY_CONCRETE-1_CONCRETE, job=damage, result=ConcUelSDVs, location=computed, which=average,  values=14
+
+** ** We export our stresses and strains using Voigt notation ...
+** *ensightPerElementVariableJob, name=stress_voigt, dimensions=6
+** *ensightPerElementVariableJob, name=strain_voigt, dimensions=6
+** ** and for illustrative purposes also using the 3x3 tensor notation!
+** *ensightPerElementVariableJob, name=stress, dimensions=9
+** *ensightPerElementVariableJob, name=strain, dimensions=9
+
+** ** ... For UELS, we access those quantities within the SDVs usingof a python slice (of course we have to know where those variables are located in the SDVs)!
+** *ensightPerElementVariableJobEntry, set=SECCONC, job=stress_voigt, result=ConcUelSDVs, location=computed, which=average,  values=6:12
+** *ensightPerElementVariableJobEntry, set=SECCONC, job=strain_voigt, result=ConcUelSDVs, location=computed, which=average,  values=12:18
+** ** ... and for the 3x3 tensor notation (note that we account for factor two on shear strain terms):
+** *ensightPerElementVariableJobEntry, set=SECCONC, job=stress, result=ConcUelSDVs, location=computed, which=average, values=6:12, f(x)='[x[0], x[3], 0, x[3], x[1], 0, 0, 0, x[2]]'
+** *ensightPerElementVariableJobEntry, set=SECCONC, job=strain, result=ConcUelSDVs, location=computed, which=average, values=12:18, f(x)='[x[0], x[3]/2, 0, x[3]/2, x[1], 0, 0, 0, x[2]]'
+** **
+** ** Here we access standard Abaqus CPS4 results, which has 4 integration points.
+** ** stress and strains, and we can add them to the stress/strain collection of our UELs, so we can post-process them together in ParaView/Ensight
+** ** However, since we have a 2D analysis, Abaqus exports only 2D stress/strain tensors with 3 components. 
+** ** we need to fill them into a 3D Voigt tensor with 6 components, by using the f(x) feature!
+** *computeAverageOverQuadraturePoints, set=SECSTEELLOAD, result=S
+** *computeAverageOverQuadraturePoints, set=SECSTEELLOAD, result=E
+** *computeAverageOverQuadraturePoints, set=SECSTEELBOTTOM, result=S
+** *computeAverageOverQuadraturePoints, set=SECSTEELBOTTOM, result=E
+
+** *ensightPerElementVariableJobEntry, set=SECSTEELLOAD,   job=stress_voigt, result=S, location=computed, which=average, f(x)='[x[0], x[1], 0, x[2], 0, 0]'
+** *ensightPerElementVariableJobEntry, set=SECSTEELBOTTOM, job=stress_voigt, result=S, location=computed, which=average, f(x)='[x[0], x[1], 0, x[2], 0, 0]'
+** *ensightPerElementVariableJobEntry, set=SECSTEELLOAD,   job=strain_voigt, result=E, location=computed, which=average, f(x)='[x[0], x[1], 0, x[2], 0, 0]'
+** *ensightPerElementVariableJobEntry, set=SECSTEELBOTTOM, job=strain_voigt, result=E, location=computed, which=average, f(x)='[x[0], x[1], 0, x[2], 0, 0]'
+
+** ** ** and for the 3x3 tensor notation:
+** *ensightPerElementVariableJobEntry, set=SECSTEELLOAD,   job=stress, result=S, location=computed, which=average, f(x)='[x[0], x[2], 0, x[2], x[1], 0, 0, 0, 0]'
+** *ensightPerElementVariableJobEntry, set=SECSTEELBOTTOM, job=stress, result=S, location=computed, which=average, f(x)='[x[0], x[2], 0, x[2], x[1], 0, 0, 0, 0]'
+** *ensightPerElementVariableJobEntry, set=SECSTEELLOAD,   job=strain, result=E, location=computed, which=average, f(x)='[x[0], x[2]/2, 0, x[2]/2, x[1], 0, 0, 0, 0]'
+** *ensightPerElementVariableJobEntry, set=SECSTEELBOTTOM, job=strain, result=E, location=computed, which=average, f(x)='[x[0], x[2]/2, 0, x[2]/2, x[1], 0, 0, 0, 0]'
