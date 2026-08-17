@@ -108,10 +108,12 @@ hNut = 0.9 * dAnchor                         # nut height
 dWasherOut = 1.9 * dAnchor                   # washer outer diameter
 tWasher = 0.19 * dAnchor                     # washer thickness
 
-# Clearance-hole diameter, shared by the washer bore AND the plate hole (DIN 125
-# d1 = d + 1 for M12..M24). The nut bore is deliberately NOT this: it is dAnchor,
-# coincident with the shaft, because the nut is threaded on and gets a tie.
+# Clearance-hole diameter of the fixture variants, carried here only to keep this
+# parameter block a clean diff against them. THIS VARIANT HAS NO CLEARANCE: the
+# plate hole below is cut at anchor_r, so the two surfaces are coincident and can
+# be merged. Anything reading the plate hole must read plate_hole_d, not this.
 dClearance = dAnchor + 1.0
+plate_hole_d = dAnchor                       # coincident with the shaft; merged
 
 alphaNut = 0.0        # nut rotation about its axis; 0 or 30 are both symmetric
 stickOut = 0.0        # free thread above the nut
