@@ -8,7 +8,7 @@
 **
 ** Generated directly and completely by:
 ** mesh/Pryout_elastic_bareanchor_section.py
-** This is the fixed standalone M20 / hef80 / option-F model.
+** This is the fixed standalone M20 / hef70 / option-F model.
 **
 ** The load height is plate_cut_h = tPlate/3 = 6.667 mm, the plane where the
 ** full-fixture model

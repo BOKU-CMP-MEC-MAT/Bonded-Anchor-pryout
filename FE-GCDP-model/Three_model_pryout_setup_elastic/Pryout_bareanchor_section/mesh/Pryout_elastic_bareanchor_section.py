@@ -1,5 +1,5 @@
 """
-STANDALONE CUBIT GENERATOR -- M20, hef = 80 mm, OPTION F ONLY.
+STANDALONE CUBIT GENERATOR -- M20, hef = 70 mm, OPTION F ONLY.
 
 Contains the complete fixed model. It does not import or execute
 Pryout_bondedAnchor.py or make_decks.py, accepts no parameters, and creates no
@@ -11,7 +11,7 @@ Run:
 It constructs and meshes the half model and writes into the parent case directory:
     ../
 
-Fixed: M20; hef=80 mm; C3D8I; load at tPlate/3=6.6666667 mm through
+Fixed: M20; hef=70 mm; C3D8I; load at tPlate/3=6.6666667 mm through
 option F's complete rigid cross-section; no plate, washer, or nut.
 """
 
@@ -24,7 +24,7 @@ import cubit
 
 HERE = os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() else os.getcwd()
 ROOT = os.path.dirname(HERE)
-CASE_NAME = "Pryout_elastic_M20_hef80_bareanchor_section"
+CASE_NAME = "Pryout_elastic_M20_hef70_bareanchor_section"
 os.chdir(HERE)
 
 # =============================================================================
@@ -33,12 +33,12 @@ os.chdir(HERE)
 
 
 dAnchor = 20.0                            # fixed M20
-hef = 80.0                                # fixed embedment depth
+hef = 70.0                                # fixed embedment depth
 
 # --- concrete specimen (physical size; not a function of the anchor) ---------
 slab_w = 500.0        # width, x and z
-# Depth = 3 x hef, so the clamped bottom boundary cannot influence the breakout
-# cone. At hef = 80 the previous 160 mm was only 2 x hef.
+# Slab depth is kept at 240 mm (> 3 x hef), so the clamped bottom boundary
+# cannot influence the breakout cone.
 slab_h = 240.0        # total height, y
 
 # --- borehole and mortar -----------------------------------------------------
@@ -110,7 +110,7 @@ ANCHOR_ELEM = "C3D8I"                     # fixed
 ANCHOR_ORDER = "hex8"
 
 print("=" * 70)
-print("STANDALONE M20 hef80 BARE ANCHOR, OPTION F RIGID SECTION")
+print("STANDALONE M20 hef70 BARE ANCHOR, OPTION F RIGID SECTION")
 print("  borehole r=%g depth=%g | NO plate, NO washer, NO nut" % (hole_r, hole_d))
 print("  shaft protrusion %g | load plane y = %g (= tPlate/3)" % (anchor_free_h, plate_cut_h))
 print("  anchor elements: %s (%s block) -- NOT C3D8R" % (ANCHOR_ELEM, ANCHOR_ORDER))
@@ -505,7 +505,7 @@ def write_option_f_case():
 **
 ** Generated directly and completely by:
 ** mesh/Pryout_elastic_bareanchor_section.py
-** This is the fixed standalone M20 / hef80 / option-F model.
+** This is the fixed standalone M20 / hef70 / option-F model.
 **
 ** The load height is plate_cut_h = tPlate/3 = 6.667 mm, the plane where the
 ** full-fixture model
