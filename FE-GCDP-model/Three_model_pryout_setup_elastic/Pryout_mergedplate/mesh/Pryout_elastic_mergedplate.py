@@ -87,9 +87,9 @@ anchor_d = hef                               # bonded length
 # Measured dimensions of the test-rig plate: 100 mm along x (the loading
 # direction), 400 mm along z, 20 mm thick. These are hardware sizes, so unlike the
 # rest of the fixture they do NOT scale with dAnchor. The half model keeps z <= 0,
-# i.e. 200 mm of the 400 mm length.
+# i.e. 125 mm of the 250 mm length.
 plate_x = 100.0                              # extent along x, the load direction
-plate_z = 400.0                              # full extent along z (half model: 200)
+plate_z = 250.0                              # full extent along z (half model: 125)
 tPlate = 20.0                                # plate thickness
 plate_cut_h = tPlate / 3.0                   # load is applied on this plane
 
