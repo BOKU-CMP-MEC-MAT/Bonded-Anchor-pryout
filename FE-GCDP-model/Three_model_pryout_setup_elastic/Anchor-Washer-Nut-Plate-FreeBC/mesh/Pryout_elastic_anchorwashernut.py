@@ -3,7 +3,7 @@ Bonded-anchor pry-out model: concrete slab + mortar + anchor + fixture plate +
 flat washer + hex nut, meshed with Cubit and exported for AnchorPryOut.inp.
 
 Master build script. Parametric in the anchor diameter and embedment depth; the
-defaults are d = 20, hef = 80, matching AnchorPryOut.inp as shipped.
+defaults are d = 20, hef = 70, matching AnchorPryOut.inp as shipped.
 
 Two reduced variants live in sibling directories, each with its own copy of this
 script: ../../Pryout_elastic_M20_hef80_bareanchor (no fixture at all, load applied
@@ -14,11 +14,11 @@ Under Cubit, pass parameters in the ENVIRONMENT. Cubit's "-input" mode hands the
 script an empty sys.argv and tries to interpret any extra command-line words as
 journal files ("Could not open file: --"), so command-line flags cannot reach it:
 
-    PRYOUT_D=12 PRYOUT_HEF=60 cubit -nographics -batch -nojournal -input Pryout_bondedAnchor.py
+    PRYOUT_D=12 PRYOUT_HEF=60 cubit -nographics -batch -nojournal -input Pryout_elastic_anchorwashernut.py
 
 Run directly instead (cubit module on PYTHONPATH) and either form works:
 
-    python3 Pryout_bondedAnchor.py --d=12 --hef=60
+    python3 Pryout_elastic_anchorwashernut.py --d=12 --hef=60
 
 Writes ./steel.inp (anchor, plate, mortar, washer, nut) and ./concrete.inp
 (concrete), then rewrites continuum steel blocks to C3D8I and the mortar block
@@ -64,12 +64,12 @@ def _param(flag, env, default):
 
 
 dAnchor = _param("d", "PRYOUT_D", 20.0)      # anchor diameter
-hef = _param("hef", "PRYOUT_HEF", 80.0)      # embedment depth
+hef = _param("hef", "PRYOUT_HEF", 70.0)      # embedment depth
 
 # --- concrete specimen (physical size; not a function of the anchor) ---------
 slab_w = 500.0        # width, x and z
-# Depth = 3 x hef, so the clamped bottom boundary cannot influence the breakout
-# cone. At hef = 80 the previous 160 mm was only 2 x hef.
+# Slab depth is kept at 240 mm (> 3 x hef), so the clamped bottom boundary
+# cannot influence the breakout cone.
 slab_h = 240.0        # total height, y
 
 # --- borehole and mortar -----------------------------------------------------
@@ -80,8 +80,13 @@ hole_d = hef                                 # borehole depth
 anchor_d = hef                               # bonded length
 
 # --- fixture plate -----------------------------------------------------------
-plate_w = 4.0 * dAnchor
-tPlate = dAnchor                             # plate thickness
+# Measured dimensions of the test-rig plate: 100 mm along x (the loading
+# direction), 250 mm along z, 20 mm thick. These are hardware sizes, so unlike the
+# rest of the fixture they do NOT scale with dAnchor. The half model keeps z <= 0,
+# i.e. 125 mm of the 250 mm length.
+plate_x = 100.0                              # extent along x, the load direction
+plate_z = 250.0                              # full extent along z (half model: 125)
+tPlate = 20.0                                # plate thickness
 plate_cut_h = tPlate / 3.0                   # load is applied on this plane
 
 # --- fastener: hex nut (ISO 4032 / DIN 934) and flat washer (DIN 125A / ISO 7089)
@@ -145,7 +150,7 @@ TOL = 1e-3
 
 print("=" * 70)
 print("Pryout_bondedAnchor: d = %g, hef = %g" % (dAnchor, hef))
-print("  borehole r=%g depth=%g | plate %gx%g thick %g" % (hole_r, hole_d, plate_w, plate_w, tPlate))
+print("  borehole r=%g depth=%g | plate x%g z%g thick %g" % (hole_r, hole_d, plate_x, plate_z, tPlate))
 print("  nut s=%g m=%g | washer d1=%g d2=%g h=%g" % (sNut, hNut, dClearance, dWasherOut, tWasher))
 print("  shaft protrusion %g (plate %g + washer %g + nut %g)" % (anchor_free_h, tPlate, tWasher, hNut))
 print("=" * 70)
@@ -271,7 +276,7 @@ cubit.cmd("volume %d name 'steel_anchor'" % v_anchor)
 # The hole is dClearance, NOT the anchor diameter: there is a
 # (dClearance - dAnchor)/2 radial gap, so the plate travels that gap before it
 # bears on the shaft, which is the real behaviour of a bolted fixture.
-cubit.cmd("create brick x %g y %g z %g" % (plate_w, tPlate, plate_w))
+cubit.cmd("create brick x %g y %g z %g" % (plate_x, tPlate, plate_z))
 v_plate = cubit.get_last_id("volume")
 cubit.cmd("move volume %d y %g" % (v_plate, tPlate / 2.0))
 
@@ -500,15 +505,15 @@ new_nodeset("right", "node in grp_concrete expand with x_coord = %g" % (slab_w /
 new_nodeset("back", "node in grp_concrete expand with z_coord = %g" % (-slab_w / 2.0))
 new_nodeset("bottom", "node in grp_concrete expand with y_coord = %g" % (-slab_h))
 new_nodeset("z_symm", "node in volume all expand with z_coord = 0")
-_load_sel = "node in grp_plate expand with y_coord = %g tolerance 0.01 and x_coord = %g tolerance 0.01" % (plate_cut_h, -plate_w / 2.0)
+_load_sel = "node in grp_plate expand with y_coord = %g tolerance 0.01 and x_coord = %g tolerance 0.01" % (plate_cut_h, -plate_x / 2.0)
 new_nodeset("plate_left_loading", _load_sel)
 # Four loading node sets on the plate left face at h = 0, h/3, 2h/3, h (h = tPlate).
 # plate_left_h1_3 duplicates plate_left_loading; the extra sets let the load
 # height be changed in the .inp without re-meshing. The 2h/3 and h layers only
 # exist because the plate mesh size divides tPlate/3, so the count is checked.
-for _name, _y in (("plate_left_h0", 0.0), ("plate_left_h1_3", tPlate / 3.0),
-                  ("plate_left_h2_3", 2.0 * tPlate / 3.0), ("plate_left_h1", tPlate)):
-    new_nodeset(_name, "node in grp_plate expand with y_coord = %g tolerance 0.01 and x_coord = %g tolerance 0.01" % (_y, -plate_w / 2.0))
+_load_layers = (("plate_left_h0", 0.0), ("plate_left_h1_3", tPlate / 3.0), ("plate_left_h2_3", 2.0 * tPlate / 3.0), ("plate_left_h1", tPlate))
+for _name, _y in _load_layers:
+    new_nodeset(_name, "node in grp_plate expand with y_coord = %g tolerance 0.01 and x_coord = %g tolerance 0.01" % (_y, -plate_x / 2.0))
 
 # =============================================================================
 # EXPORT
@@ -525,13 +530,7 @@ cubit.cmd('export abaqus "%s" block %d partial overwrite' % (CONCRETE, bid["conc
 # Patch the exported keywords here so every regenerated deck is directly runnable.
 with open(STEEL) as fh:
     txt = fh.read()
-replacements = {
-    "anchor": "C3D8I",
-    "plate": "C3D8I",
-    "washer": "C3D8I",
-    "nut": "C3D8I",
-    "mortar": "COH3D8",
-}
+replacements = {"anchor": "C3D8I", "plate": "C3D8I", "washer": "C3D8I", "nut": "C3D8I", "mortar": "COH3D8"}   # one line: Cubit -input cannot take a split top-level statement
 for elset, target in replacements.items():
     old = "*ELEMENT, TYPE=C3D8R, ELSET=%s" % elset
     new = "*ELEMENT, TYPE=%s, ELSET=%s" % (target, elset)
