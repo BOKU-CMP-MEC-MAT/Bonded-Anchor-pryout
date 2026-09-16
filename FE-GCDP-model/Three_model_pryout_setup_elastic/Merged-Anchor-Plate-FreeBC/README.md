@@ -10,9 +10,7 @@ M20, **hef = 70 mm**, plate **100 mm (x, load direction) x 250 mm (z) x 20 mm**
 (half model: z from -125 to 0), slab 500 x 240 x 500 mm, the same as
 `../Pryout_mergedplate`. `mesh/concrete.inp` is identical to that case's;
 `mesh/steel.inp` has the same nodes, elements and sets plus the four
-`plate_left_h*` sets. The mesh was first created with the hef = 80, 80 x 80 mm
-plate of `Merged-Anchor-Plate`; that was wrong and has been regenerated with
-`mesh/Pryout_elastic_mergedplate.py`.
+`plate_left_h*` sets.
 
 ## What differs from the original
 
