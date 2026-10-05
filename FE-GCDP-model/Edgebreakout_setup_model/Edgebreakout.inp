@@ -1,0 +1,166 @@
+*Heading
+** Edgebreakout set-up (drawings sheets 3-6): half model, symmetry plane z = 0, c = 150
+** Mesh: mesh/generate_edgebreakout_setup.py (Cubit) + mesh/modifyMesh.py.  Units: mm, N, MPa, tonne.
+** x = pull direction (towards the free edge), y = vertical (concrete top at y = 0), z = across.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+**
+** UEL
+**
+*Include, input="./incfiles/ueldef.inc"
+**
+** PARTS
+**
+*Part, name=concrete
+*Include, input="./mesh/modified/concrete.inp"
+*Solid Section, elset=dummy, material=dummy
+*End Part
+**
+** steel part = anchor, mortar, sleeve, washer, nut, C-section, L-beam, support plate, timber
+*Part, name=steel
+*Include, input="./mesh/modified/steel.inp"
+*Solid Section, elset=ANCHOR, material=STEEL_ANCHOR
+*Solid Section, elset=SLEEVE, material=STEEL_PLATE
+*Solid Section, elset=WASHER, material=STEEL_PLATE
+*Solid Section, elset=NUT, material=STEEL_PLATE
+*Solid Section, elset=CSECTION, material=STEEL_PLATE
+*Solid Section, elset=LBEAM, material=STEEL_PLATE
+*Solid Section, elset=PLATE, material=STEEL_PLATE
+*Solid Section, elset=HPLATE, material=STEEL_PLATE
+*Solid Section, elset=TIMBER, material=TIMBER
+*ORIENTATION, name=MORTAR_CYL, SYSTEM=CYLINDRICAL
+0, 0, 0, 0, 1, 0
+1
+**
+** Cohesive Section (mortar)
+*COHESIVE SECTION, elset=MORTAR, material=stick_slip, response=TRACTION SEPARATION, ORIENTATION=MORTAR_CYL, STACK DIRECTION=ORIENTATION
+*End Part
+**
+** UEL Props
+**
+*Include, input="./incfiles/uelprops_GCDP.inc"
+**
+** ASSEMBLY
+**
+*Assembly, name=Assembly
+**
+*Instance, name=concrete-1, part=concrete
+*End Instance
+**
+*Instance, name=steel-1, part=steel
+*End Instance
+**
+** ---- TIED INTERFACES ----
+** bonded anchor: anchor - mortar - concrete (as in the SS-160 model)
+*TIE, NAME=ANCHOR_TO_MORTAR, TYPE=SURFACE TO SURFACE
+steel-1.mortar_to_anchor, steel-1.anchor_to_mortar
+*TIE, NAME=MORTAR_TO_CONCRETE, TYPE=SURFACE TO SURFACE
+concrete-1.concrete_to_mortar, steel-1.mortar_to_concrete
+** steel sleeve (height 20, bore = anchor) is tied to the anchor
+*TIE, NAME=SLEEVE_TO_ANCHOR, TYPE=SURFACE TO SURFACE
+steel-1.sleeve_bore, steel-1.anchor_to_mortar
+** washer clamps the C web and the sleeve; nut clamps the washer (fixture fully tied, accuracy not critical)
+*TIE, NAME=WASHER_TO_SLEEVE, TYPE=SURFACE TO SURFACE
+steel-1.washer_bottom, steel-1.sleeve_top
+*TIE, NAME=WASHER_TO_WEB, TYPE=SURFACE TO SURFACE
+steel-1.washer_bottom, steel-1.c_webtop
+*TIE, NAME=NUT_TO_WASHER, TYPE=SURFACE TO SURFACE
+steel-1.nut_bottom, steel-1.washer_top
+*TIE, NAME=NUT_TO_ANCHOR, TYPE=SURFACE TO SURFACE
+steel-1.nut_bore, steel-1.anchor_to_mortar
+** L-beam web bolted to the C flange: the M14 bolts are replaced by a tie of the contact faces
+*TIE, NAME=LWEB_TO_CFLANGE, TYPE=SURFACE TO SURFACE
+steel-1.l_web_inner, steel-1.c_flange_outer
+*End Assembly
+**
+** MATERIALS
+**
+*Material, name=STEEL_ANCHOR
+*Elastic
+200000., 0.3
+*DENSITY
+7.85e-9
+*Material, name=STEEL_PLATE
+*Elastic
+200000., 0.3
+*DENSITY
+7.85e-9
+** timber beam under the concrete (200 x 100): isotropic placeholder, TO BE CONFIRMED
+*Material, name=TIMBER
+*Elastic
+11000., 0.3
+*DENSITY
+5e-10
+*Material, name=dummy
+*Elastic
+1e-12, 0.3
+*DENSITY
+2.4e-9
+**
+*Material, name=stick_slip
+*Elastic, type=TRACTION
+5400, 2700, 2700
+*DENSITY
+2e-9
+**
+** INTERACTION PROPERTIES: frictionless hard contact, direct (Lagrange) enforcement
+**
+*Surface Interaction, name=HARD
+*Surface Behavior, DIRECT, pressure-overclosure=HARD
+**
+** ---- CONTACT PAIRS ----
+** C-section, L-beam leg, sleeve and support plate bear on the concrete top; concrete bottom on the timber
+*Contact Pair, interaction=HARD, type=SURFACE TO SURFACE
+steel-1.c_bottom, concrete-1.concrete_top
+*Contact Pair, interaction=HARD, type=SURFACE TO SURFACE
+steel-1.l_bottom, concrete-1.concrete_top
+*Contact Pair, interaction=HARD, type=SURFACE TO SURFACE
+steel-1.sleeve_bottom, concrete-1.concrete_top
+*Contact Pair, interaction=HARD, type=SURFACE TO SURFACE
+steel-1.plate_bottom, concrete-1.concrete_top
+** vertical part of the support: 10 thick plate against the free-edge face (50 x 50, aligned with the timber)
+*Contact Pair, interaction=HARD, type=SURFACE TO SURFACE
+steel-1.hplate_face, concrete-1.front_support
+*Contact Pair, interaction=HARD, type=SURFACE TO SURFACE
+steel-1.timber_top, concrete-1.concrete_bottom
+** sleeve (tied to the anchor) against the hole of the C web: contact with pressure-overclosure
+** adjust removes the small faceting gap/overlap between the two circles of radius 25
+*Contact Pair, interaction=HARD, type=SURFACE TO SURFACE, adjust=0.2
+steel-1.sleeve_outer, steel-1.c_hole
+**
+** BOUNDARY CONDITIONS
+**
+** back face of the concrete: vertical support ("continuity of the slab")
+*Boundary
+concrete-1.back_support, 2, 2
+** symmetry plane z = 0
+*Boundary
+steel-1.z_symm, zSYMM
+concrete-1.z_symm, zSYMM
+** rigid support plates 50 x 50 x 10 (top plate = vertical support, front plate = horizontal support) and timber fixed to the ground
+*Boundary
+steel-1.plate_all, ENCASTRE
+steel-1.hplate_all, ENCASTRE
+steel-1.timber_bottom, ENCASTRE
+** back end of the L-beam (clamps): vertical and z fixed, free along the pull direction so that the load passes through the C and the anchor
+*Boundary
+steel-1.l_back, 2, 3
+**
+** STEP: loading
+**
+*Step, name=loading, nlgeom=no, inc=100000
+*Static
+5e-4, 1, 1e-08, 5e-3
+**
+** Name: load Type: Displacement (end of the L-beam, 100 beyond the free edge; jack keeps uy = uz = 0)
+*Boundary, type=displacement
+steel-1.load_end, 1, 1, 5.0
+steel-1.load_end, 2, 3, 0.0
+** OUTPUT REQUESTS
+*Print, contact=yes
+*Restart, write, frequency=1, overlay
+*Include, input="./incfiles/output.inc"
+*Include, input="./incfiles/fileOutput.inc"
+*Output, history, frequency=1
+*Node Output, nset=steel-1.load_end
+RF1, U1
+*End Step
